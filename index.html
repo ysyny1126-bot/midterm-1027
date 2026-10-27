@@ -43,6 +43,8 @@
   label { display:flex; flex-direction:column; gap:4px; font-size:.78rem; color:var(--muted); font-weight:600; }
   input, select { width:100%; min-width:0; padding:9px 10px; font:inherit; font-size:16px; color:var(--text); background:var(--field); border:1px solid var(--line); border-radius:7px; }
   input:focus, select:focus { outline:2px solid var(--accent-2); outline-offset:-1px; }
+  .custom { display:none; margin-top:6px; }
+  .custom.on { display:block; }
   .actions { display:flex; justify-content:flex-end; margin-top:14px; }
   button { font:inherit; font-weight:600; padding:9px 18px; border-radius:7px; border:1px solid var(--accent); background:var(--accent); color:var(--card); cursor:pointer; }
   button.ghost { background:transparent; color:var(--accent); }
@@ -88,8 +90,8 @@
       <h2>예약하기</h2>
       <p class="hint">시간은 정수(시)로 입력합니다. 예: 10 → 10:00</p>
       <div class="fields">
-        <label>강의실<input id="b-room" list="rooms" value="A101" autocomplete="off"></label>
-        <label>요일<input id="b-day" list="days" value="월" autocomplete="off"></label>
+        <label>강의실<select id="b-room" data-custom="b-room-x"><option>A101</option><option>A102</option><option>B201</option><option value="__x">직접 입력…</option></select><input id="b-room-x" class="custom" placeholder="직접 입력" autocomplete="off"></label>
+        <label>요일<select id="b-day" data-custom="b-day-x"><option>월</option><option>화</option><option>수</option><option>목</option><option>금</option><option>토</option><option>일</option><option value="__x">직접 입력…</option></select><input id="b-day-x" class="custom" placeholder="직접 입력" autocomplete="off"></label>
         <label>시작 (시)<input id="b-start" inputmode="numeric" placeholder="10"></label>
         <label>끝 (시)<input id="b-end" inputmode="numeric" placeholder="12"></label>
         <label class="full">예약자 이름<input id="b-name" placeholder="홍길동"></label>
@@ -103,8 +105,8 @@
       <h2>예약 취소</h2>
       <p class="hint">예약한 본인 이름으로만 취소할 수 있습니다.</p>
       <div class="fields">
-        <label>강의실<input id="c-room" list="rooms" value="A101" autocomplete="off"></label>
-        <label>요일<input id="c-day" list="days" value="월" autocomplete="off"></label>
+        <label>강의실<select id="c-room" data-custom="c-room-x"><option>A101</option><option>A102</option><option>B201</option><option value="__x">직접 입력…</option></select><input id="c-room-x" class="custom" placeholder="직접 입력" autocomplete="off"></label>
+        <label>요일<select id="c-day" data-custom="c-day-x"><option>월</option><option>화</option><option>수</option><option>목</option><option>금</option><option>토</option><option>일</option><option value="__x">직접 입력…</option></select><input id="c-day-x" class="custom" placeholder="직접 입력" autocomplete="off"></label>
         <label>시작 시각 (시)<input id="c-start" inputmode="numeric" placeholder="10"></label>
         <label>예약자 이름<input id="c-name" placeholder="홍길동"></label>
       </div>
@@ -134,8 +136,6 @@
   </div>
 </div>
 
-<datalist id="rooms"><option value="A101"><option value="A102"><option value="B201"></datalist>
-<datalist id="days"><option value="월"><option value="화"><option value="수"><option value="목"><option value="금"></datalist>
 
 <script>
 let py = null;
@@ -178,7 +178,15 @@ function hour(id) {
   const s = $(id).value.trim();
   return /^-?\d+$/.test(s) ? Number(s) : s;
 }
-const val = id => $(id).value;
+// 선택 목록에서 "직접 입력…"을 고르면 옆 입력칸 값을 그대로 넘긴다 (잘못된 값도 solution.py가 판단)
+const val = id => {
+  const el = $(id);
+  return el.value === "__x" ? $(el.dataset.custom).value : el.value;
+};
+document.querySelectorAll("select[data-custom]").forEach(el => el.onchange = () => {
+  $(el.dataset.custom).classList.toggle("on", el.value === "__x");
+  if (el.value === "__x") $(el.dataset.custom).focus();
+});
 const hh = h => String(h).padStart(2, "0") + ":00";
 
 function show(ok, big, detail) {
