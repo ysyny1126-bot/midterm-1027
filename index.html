@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>강의실 예약</title>
+<!-- Pyodide: 브라우저 안에서 진짜 파이썬을 돌린다. 예약 규칙은 전부 solution.py에 있고, 이 페이지는 그것을 불러 쓰기만 한다. -->
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<style>
+  :root {
+    --bg:#f4f5f7; --card:#fff; --text:#1c2230; --muted:#667085; --line:#e3e6eb; --field:#fafbfc;
+    --accent:#1f3a5f; --accent-2:#2c5282; --ok:#127a45; --ok-bg:#e8f5ee; --err:#b42318; --err-bg:#fdecea;
+    --block:#dbe6f3; --block-text:#1f3a5f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#121418; --card:#1b1e24; --text:#e6e8ec; --muted:#9aa3b2; --line:#2c313a; --field:#16191e;
+      --accent:#8fb3e0; --accent-2:#a9c4e8; --ok:#5ed39a; --ok-bg:#12291e; --err:#ff8b80; --err-bg:#2e1614;
+      --block:#243449; --block-text:#cfe0f5;
+    }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.55 system-ui, -apple-system, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; }
+  header { background:var(--card); border-bottom:1px solid var(--line); }
+  .wrap { max-width:1040px; margin:0 auto; padding:0 16px; }
+  header .wrap { display:flex; align-items:baseline; justify-content:space-between; gap:12px; padding-top:18px; padding-bottom:16px; flex-wrap:wrap; }
+  h1 { font-size:1.25rem; margin:0; letter-spacing:-.01em; }
+  .sub { color:var(--muted); font-size:.85rem; margin:2px 0 0; }
+  #status { font-size:.8rem; color:var(--muted); display:flex; align-items:center; gap:6px; }
+  #status::before { content:""; width:8px; height:8px; border-radius:50%; background:#c9a227; }
+  #status.ready::before { background:var(--ok); }
+  #status.fail::before { background:var(--err); }
+
+  .grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.15fr); gap:16px; padding-top:20px; padding-bottom:32px; }
+  @media (max-width:820px) { .grid { grid-template-columns:minmax(0,1fr); } }
+  .col { display:flex; flex-direction:column; gap:16px; min-width:0; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px; }
+  .card h2 { font-size:.95rem; margin:0 0 4px; }
+  .card .hint { color:var(--muted); font-size:.8rem; margin:0 0 14px; }
+
+  .fields { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px 12px; }
+  .fields .full { grid-column:1 / -1; }
+  label { display:flex; flex-direction:column; gap:4px; font-size:.78rem; color:var(--muted); font-weight:600; }
+  input, select { width:100%; min-width:0; padding:9px 10px; font:inherit; font-size:16px; color:var(--text); background:var(--field); border:1px solid var(--line); border-radius:7px; }
+  input:focus, select:focus { outline:2px solid var(--accent-2); outline-offset:-1px; }
+  .actions { display:flex; justify-content:flex-end; margin-top:14px; }
+  button { font:inherit; font-weight:600; padding:9px 18px; border-radius:7px; border:1px solid var(--accent); background:var(--accent); color:var(--card); cursor:pointer; }
+  button.ghost { background:transparent; color:var(--accent); }
+  button:disabled { opacity:.45; cursor:wait; }
+
+  /* 결과 표시: 성공/실패를 크게 */
+  #result { display:none; border-radius:10px; padding:16px 18px; border:1px solid; }
+  #result.ok { display:block; background:var(--ok-bg); border-color:var(--ok); color:var(--ok); }
+  #result.err { display:block; background:var(--err-bg); border-color:var(--err); color:var(--err); }
+  #result .big { font-size:1.6rem; font-weight:800; letter-spacing:-.01em; line-height:1.2; }
+  #result .detail { font-size:.88rem; margin-top:4px; color:var(--text); word-break:break-all; }
+
+  .sched-head { display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-bottom:14px; }
+  .sched-head label { flex:1 1 120px; }
+  .timeline { position:relative; border-top:1px solid var(--line); }
+  .hour { display:grid; grid-template-columns:44px 1fr; height:30px; border-bottom:1px solid var(--line); }
+  .hour span { font-size:.72rem; color:var(--muted); padding-top:2px; font-variant-numeric:tabular-nums; }
+  .blocks { position:absolute; left:52px; right:0; top:0; bottom:0; }
+  .blk { position:absolute; left:0; right:0; background:var(--block); color:var(--block-text); border-left:3px solid var(--accent); border-radius:5px; padding:3px 10px; font-size:.82rem; overflow:hidden; display:flex; gap:8px; align-items:baseline; }
+  .blk b { font-variant-numeric:tabular-nums; }
+  table { width:100%; border-collapse:collapse; margin-top:16px; font-size:.88rem; }
+  th, td { text-align:left; padding:7px 4px; border-bottom:1px solid var(--line); }
+  th { color:var(--muted); font-weight:600; font-size:.75rem; }
+  td.num { font-variant-numeric:tabular-nums; }
+  .empty { color:var(--muted); font-size:.85rem; padding:10px 0 0; }
+  footer { color:var(--muted); font-size:.75rem; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div>
+      <h1>강의실 예약</h1>
+      <p class="sub">A101 · A102 · B201 &nbsp;|&nbsp; 월–금 09:00–21:00 &nbsp;|&nbsp; 1회 최대 3시간, 1인 하루 2건</p>
+    </div>
+    <div id="status">예약 시스템 불러오는 중… (처음엔 5~10초)</div>
+  </div>
+</header>
+
+<div class="wrap grid">
+  <div class="col">
+    <section class="card">
+      <h2>예약하기</h2>
+      <p class="hint">시간은 정수(시)로 입력합니다. 예: 10 → 10:00</p>
+      <div class="fields">
+        <label>강의실<input id="b-room" list="rooms" value="A101" autocomplete="off"></label>
+        <label>요일<input id="b-day" list="days" value="월" autocomplete="off"></label>
+        <label>시작 (시)<input id="b-start" inputmode="numeric" placeholder="10"></label>
+        <label>끝 (시)<input id="b-end" inputmode="numeric" placeholder="12"></label>
+        <label class="full">예약자 이름<input id="b-name" placeholder="홍길동"></label>
+      </div>
+      <div class="actions"><button data-act="book">예약</button></div>
+    </section>
+
+    <div id="result" role="status" aria-live="polite"><div class="big"></div><div class="detail"></div></div>
+
+    <section class="card">
+      <h2>예약 취소</h2>
+      <p class="hint">예약한 본인 이름으로만 취소할 수 있습니다.</p>
+      <div class="fields">
+        <label>강의실<input id="c-room" list="rooms" value="A101" autocomplete="off"></label>
+        <label>요일<input id="c-day" list="days" value="월" autocomplete="off"></label>
+        <label>시작 시각 (시)<input id="c-start" inputmode="numeric" placeholder="10"></label>
+        <label>예약자 이름<input id="c-name" placeholder="홍길동"></label>
+      </div>
+      <div class="actions"><button data-act="cancel">취소</button></div>
+    </section>
+  </div>
+
+  <div class="col">
+    <section class="card">
+      <h2>시간표</h2>
+      <p class="hint">강의실과 요일을 고르면 그날 예약이 시작 시각 순서로 표시됩니다.</p>
+      <div class="sched-head">
+        <label>강의실<select id="s-room"><option>A101</option><option>A102</option><option>B201</option></select></label>
+        <label>요일<select id="s-day"><option>월</option><option>화</option><option>수</option><option>목</option><option>금</option></select></label>
+      </div>
+      <div class="timeline" id="timeline"></div>
+      <table>
+        <thead><tr><th>시작</th><th>끝</th><th>예약자</th></tr></thead>
+        <tbody id="s-list"></tbody>
+      </table>
+      <p class="empty" id="s-empty">예약이 없습니다.</p>
+    </section>
+    <footer>
+      <span>예약 규칙은 모두 solution.py(RoomBooking)가 판단합니다.</span>
+      <button class="ghost" data-act="reset">전체 초기화</button>
+    </footer>
+  </div>
+</div>
+
+<datalist id="rooms"><option value="A101"><option value="A102"><option value="B201"></datalist>
+<datalist id="days"><option value="월"><option value="화"><option value="수"><option value="목"><option value="금"></datalist>
+
+<script>
+let py = null;
+const $ = id => document.getElementById(id);
+const OPEN = 9, CLOSE = 21;  // 시간표 눈금 표시용 (규칙 판단에는 쓰지 않음)
+
+// solution.py를 받아서 import. ?v=시간 을 붙여 재배포 후 옛 파일이 캐시로 남지 않게 한다.
+async function boot() {
+  py = await loadPyodide();
+  const res = await fetch("solution.py?v=" + Date.now());
+  if (!res.ok) throw new Error("solution.py " + res.status);
+  py.FS.writeFile("solution.py", await res.text());
+  py.runPython(`
+import json, solution
+state = {"obj": solution.RoomBooking()}
+
+def call(fn, *args):
+    """파이썬 예외를 잡아서 JSON으로 돌려준다 → 잘못된 입력에도 페이지가 멈추지 않음."""
+    try:
+        return json.dumps({"ok": True, "value": fn(*args)}, ensure_ascii=False)
+    except Exception as e:
+        return json.dumps({"ok": False, "error": f"{type(e).__name__}: {e}"}, ensure_ascii=False)
+`);
+  $("status").textContent = "준비 완료";
+  $("status").className = "ready";
+  document.querySelectorAll("button").forEach(b => b.disabled = false);
+  refresh();
+}
+
+// 파이썬 함수를 JS에서 부르는 도우미. pyCode는 파이썬 람다 문자열, args는 JS 값 배열.
+function run(pyCode, ...args) {
+  const fn = py.runPython(pyCode);
+  const r = JSON.parse(py.globals.get("call")(fn, ...args));
+  fn.destroy?.();
+  return r;
+}
+
+// 시각 칸: 정수 모양이면 숫자로, 아니면 문자열 그대로 넘겨서 solution.py가 거절하게 한다
+function hour(id) {
+  const s = $(id).value.trim();
+  return /^-?\d+$/.test(s) ? Number(s) : s;
+}
+const val = id => $(id).value;
+const hh = h => String(h).padStart(2, "0") + ":00";
+
+function show(ok, big, detail) {
+  const box = $("result");
+  box.className = ok ? "ok" : "err";
+  box.querySelector(".big").textContent = big;
+  box.querySelector(".detail").textContent = detail;
+}
+
+function refresh() {
+  const room = val("s-room"), day = val("s-day");
+  const r = run("lambda r, d: state['obj'].get_schedule(r, d)", room, day);
+  const items = r.ok ? r.value : [];
+  // 시간 눈금
+  let html = "";
+  for (let h = OPEN; h < CLOSE; h++) html += `<div class="hour"><span>${hh(h)}</span><i></i></div>`;
+  html += `<div class="blocks">`;
+  for (const [s, e, n] of items) {
+    const top = (s - OPEN) * 30, height = (e - s) * 30 - 2;
+    html += `<div class="blk" style="top:${top + 1}px;height:${height}px"><b>${hh(s)}–${hh(e)}</b><span></span></div>`;
+  }
+  $("timeline").innerHTML = html + "</div>";
+  // 이름은 textContent로 넣어 HTML로 해석되지 않게 한다
+  $("timeline").querySelectorAll(".blk span").forEach((el, i) => el.textContent = items[i][2]);
+  const tb = $("s-list");
+  tb.innerHTML = "";
+  for (const [s, e, n] of items) {
+    const tr = tb.insertRow();
+    tr.insertCell().textContent = hh(s);
+    tr.insertCell().textContent = hh(e);
+    tr.insertCell().textContent = n;
+    tr.cells[0].className = tr.cells[1].className = "num";
+  }
+  $("s-empty").style.display = items.length ? "none" : "block";
+  if (!r.ok) $("s-empty").textContent = "오류 — " + r.error;
+}
+
+// 방금 처리한 강의실·요일이 유효하면 시간표를 그쪽으로 맞춘다
+function follow(room, day) {
+  if ([...$("s-room").options].some(o => o.value === room)) $("s-room").value = room;
+  if ([...$("s-day").options].some(o => o.value === day)) $("s-day").value = day;
+}
+
+const actions = {
+  book() {
+    const a = [val("b-room"), val("b-day"), hour("b-start"), hour("b-end"), val("b-name")];
+    const r = run("lambda r, d, s, e, n: state['obj'].book(r, d, s, e, n)", ...a);
+    const what = `${a[0]} · ${a[1]} · ${a[2]}~${a[3]}시 · ${a[4] || "(이름 없음)"}`;
+    if (!r.ok) show(false, "실패", "오류 — " + r.error);
+    else if (r.value === true) show(true, "예약 성공", what);
+    else show(false, "실패", "예약이 거절되었습니다 — " + what);
+    follow(a[0], a[1]); refresh();
+  },
+  cancel() {
+    const a = [val("c-room"), val("c-day"), hour("c-start"), val("c-name")];
+    const r = run("lambda r, d, s, n: state['obj'].cancel(r, d, s, n)", ...a);
+    const what = `${a[0]} · ${a[1]} · ${a[2]}시 시작 · ${a[3] || "(이름 없음)"}`;
+    if (!r.ok) show(false, "취소 실패", "오류 — " + r.error);
+    else if (r.value === true) show(true, "취소 성공", what);
+    else show(false, "취소 실패", "해당 예약이 없거나 본인 예약이 아닙니다 — " + what);
+    follow(a[0], a[1]); refresh();
+  },
+  reset() {
+    if (!confirm("모든 예약을 지우고 처음 상태로 돌아갈까요?")) return;
+    run("lambda: state.update(obj=solution.RoomBooking())");
+    $("result").className = "";
+    refresh();
+  },
+};
+
+$("s-room").onchange = $("s-day").onchange = () => py && refresh();
+document.querySelectorAll("button").forEach(b => { b.disabled = true; b.onclick = () => actions[b.dataset.act](); });
+boot().catch(e => { $("status").textContent = "불러오기 실패: " + e; $("status").className = "fail"; });
+</script>
+</body>
+</html>
