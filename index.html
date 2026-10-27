@@ -43,6 +43,7 @@
   label { display:flex; flex-direction:column; gap:4px; font-size:.78rem; color:var(--muted); font-weight:600; }
   input, select { width:100%; min-width:0; padding:9px 10px; font:inherit; font-size:16px; color:var(--text); background:var(--field); border:1px solid var(--line); border-radius:7px; }
   input:focus, select:focus { outline:2px solid var(--accent-2); outline-offset:-1px; }
+  .note { font-weight:400; font-size:.75rem; color:var(--muted); }
   .custom { display:none; margin-top:6px; }
   .custom.on { display:block; }
   .actions { display:flex; justify-content:flex-end; margin-top:14px; }
@@ -95,7 +96,7 @@
         <label>요일<select id="b-day" data-custom="b-day-x"><option>월</option><option>화</option><option>수</option><option>목</option><option>금</option><option>토</option><option>일</option><option value="__x">직접 입력…</option></select><input id="b-day-x" class="custom" placeholder="직접 입력" autocomplete="off"></label>
         <label>시작 (시)<input id="b-start" inputmode="numeric" placeholder="10"></label>
         <label>끝 (시)<input id="b-end" inputmode="numeric" placeholder="12"></label>
-        <label class="full">예약자 이름<input id="b-name" placeholder="홍길동"></label>
+        <label class="full">예약자 이름<input id="b-name" placeholder="홍길동"><span class="note">이름은 꼭 입력해 주세요. 동명이인은 이름 뒤에 숫자를 붙여 주세요. (예: 김민수2)</span></label>
       </div>
       <div class="actions"><button data-act="book">예약</button></div>
     </section>

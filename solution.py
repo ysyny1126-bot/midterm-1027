@@ -20,6 +20,8 @@ class RoomBooking:
     def book(self, room, day, start, end, name):
         if room not in ROOMS or day not in DAYS:          # 규칙 1
             return False
+        if not isinstance(name, str) or not name.strip(): # 이름 없음 (추가 규칙)
+            return False
         if not _is_int(start) or not _is_int(end):        # 규칙 2
             return False
         if start < OPEN or end > CLOSE:                   # 규칙 3
